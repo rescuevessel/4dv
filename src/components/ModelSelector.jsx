@@ -7,7 +7,7 @@ const buttonStyle = {
   border: "1px solid #ccc",
   backgroundColor: "#fff",
   cursor: "pointer",
-  fontSize: "16px",
+  fontSize: "14px",
 }
 
 export default function ModelSelector({

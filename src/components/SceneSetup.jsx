@@ -1,16 +1,49 @@
-import React from "react"
+import { useEffect } from "react"
 import { useThree } from "@react-three/fiber"
 import { OrbitControls } from "@react-three/drei"
 import * as THREE from "three"
 
-export function SetBackgroundTexture() {
+// This component handles the Three.js background
+export function SetBackground({ type, color, gradientColors }) {
   const { scene } = useThree()
-  React.useEffect(() => {
-    const loader = new THREE.TextureLoader()
-    loader.load("/gradient.jpg", (texture) => {
+
+  useEffect(() => {
+    if (type === "texture") {
+      const loader = new THREE.TextureLoader()
+      loader.load("/gradient.jpg", (texture) => {
+        scene.background = texture
+      })
+    } else if (type === "gradient") {
+      // Create a gradient texture
+      const canvas = document.createElement("canvas")
+      canvas.width = 2
+      canvas.height = 512 // Height determines gradient smoothness
+      const context = canvas.getContext("2d")
+
+      // Create gradient
+      const gradient = context.createLinearGradient(0, 0, 0, canvas.height)
+      gradient.addColorStop(0, gradientColors.top)
+      gradient.addColorStop(1, gradientColors.bottom)
+
+      // Fill canvas with gradient
+      context.fillStyle = gradient
+      context.fillRect(0, 0, canvas.width, canvas.height)
+
+      // Create and set the texture
+      const texture = new THREE.CanvasTexture(
+        canvas,
+        THREE.UVMapping,
+        THREE.ClampToEdgeWrapping,
+        THREE.ClampToEdgeWrapping,
+        THREE.LinearFilter,
+        THREE.LinearFilter
+      )
       scene.background = texture
-    })
-  }, [scene])
+    } else {
+      scene.background = new THREE.Color(color)
+    }
+  }, [scene, type, color, gradientColors])
+
   return null
 }
 

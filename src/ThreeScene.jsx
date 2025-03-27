@@ -1,139 +1,148 @@
-import { useState, useRef, useEffect } from "react"
-import { Canvas, useThree } from "@react-three/fiber"
-import { OrbitControls, useGLTF } from "@react-three/drei"
+import { useRef, useState, useEffect } from "react"
+import { Canvas } from "@react-three/fiber"
 import * as THREE from "three"
-import ModelSelector from "./components/ModelSelector"
-import ControlButtons from "./components/ControlButtons"
-import SceneSetup, { SetBackgroundTexture } from "./components/SceneSetup"
-import {
-  getSceneStateFromURL,
-  generateShareableLink,
-  showTempMessage,
-} from "./utils/sceneState"
+import SceneSetup, { SetBackground } from "./components/SceneSetup"
+import Model from "./components/Model"
+import ScreenshotHelper from "./components/ScreenshotHelper"
+import ModelControl from "./components/scene/ModelControl"
+import CameraControl from "./components/scene/CameraControl"
+import ScreenshotButton from "./components/scene/ScreenshotButton"
+import ShareLinkButton from "./components/scene/ShareButton"
+import StateControls from "./components/scene/StateControls"
+import BackgroundControl from "./components/scene/BackgroundControl"
+import useSceneState from "./hooks/useSceneState"
 
 const MODEL_FOLDER = "/models/"
-const modelList = ["model1.glb", "model2.glb", "model3.glb"]
+// Get all .glb files from the public/models directory
+const modelList = Object.keys(
+  import.meta.glob("/public/models/*.glb", { query: "?url", import: "default" })
+).map((path) => path.split("/").pop()) // Get just the filename
 
-function Model({ url, modelRef }) {
-  const { scene } = useGLTF(url)
-  return <primitive ref={modelRef} object={scene} />
-}
-
-function ScreenshotHelper({ onReady }) {
-  const { gl, scene, camera } = useThree()
-  onReady(() => {
-    gl.render(scene, camera)
-    const dataURL = gl.domElement.toDataURL("image/jpeg", 0.95)
-    const link = document.createElement("a")
-    link.href = dataURL
-    link.download = `screenshot-${Date.now()}.jpg`
-    link.click()
-  })
-  return null
-}
+// Default camera position and target
+const DEFAULT_CAMERA_POSITION = [0, 2, 5]
+const DEFAULT_CAMERA_TARGET = [0, 0, 0]
 
 export default function ThreeScene() {
-  const [selectedModel, setSelectedModel] = useState(modelList[0])
-  const [savedState, setSavedState] = useState(null)
+  // Refs
   const screenshotCallback = useRef(() => {})
   const modelRef = useRef()
   const controlsRef = useRef()
   const cameraRef = useRef()
 
-  const [saveMsg, setSaveMsg] = useState("")
-  const [restoreMsg, setRestoreMsg] = useState("")
-  const [shareMsg, setShareMsg] = useState("")
+  // Background state
+  const [backgroundType, setBackgroundType] = useState("texture")
+  const [backgroundColor, setBackgroundColor] = useState("#242424")
+  const [gradientColors, setGradientColors] = useState({
+    top: "#4a90e2",
+    bottom: "#87ceeb",
+  })
+  const [modelColor, setModelColor] = useState("#ffffff")
+  const [showEdges, setShowEdges] = useState(false)
+  const [useColor, setUseColor] = useState(true)
 
-  useEffect(() => {
-    const { modelParam, modelPos, modelRot, camPos, target } =
-      getSceneStateFromURL()
-    if (modelParam) setSelectedModel(modelParam)
+  // Scene state management
+  const {
+    selectedModel,
+    setSelectedModel,
+    saveMsg,
+    restoreMsg,
+    shareMsg,
+    saveSceneState,
+    restoreSceneState,
+    handleShareLink,
+  } = useSceneState(modelRef, controlsRef, cameraRef, modelList)
 
-    setTimeout(() => {
-      if (modelRef.current && modelPos)
-        modelRef.current.position.set(...modelPos)
-      if (modelRef.current && modelRot)
-        modelRef.current.rotation.set(...modelRot)
-      if (cameraRef.current && camPos) cameraRef.current.position.set(...camPos)
-      if (controlsRef.current && target) {
-        controlsRef.current.target.set(...target)
+  const resetCamera = () => {
+    if (cameraRef.current && controlsRef.current) {
+      // Set the target to the center
+      controlsRef.current.target.set(...DEFAULT_CAMERA_TARGET)
+
+      // Animate the camera position
+      const startPosition = cameraRef.current.position.clone()
+      const endPosition = new THREE.Vector3(...DEFAULT_CAMERA_POSITION)
+
+      // Create an animation
+      const duration = 1000 // 1 second
+      const startTime = Date.now()
+
+      const animate = () => {
+        const elapsed = Date.now() - startTime
+        const progress = Math.min(elapsed / duration, 1)
+
+        // Ease out cubic function for smooth deceleration
+        const t = 1 - Math.pow(1 - progress, 3)
+
+        // Interpolate position
+        cameraRef.current.position.lerpVectors(startPosition, endPosition, t)
+
+        // Update controls
         controlsRef.current.update()
+
+        if (progress < 1) {
+          requestAnimationFrame(animate)
+        }
       }
-    }, 500)
-  }, [])
 
-  const saveSceneState = () => {
-    if (!modelRef.current || !controlsRef.current || !cameraRef.current) return
-    const state = {
-      model: selectedModel,
-      modelPos: modelRef.current.position.toArray(),
-      modelRot: modelRef.current.rotation.toArray(),
-      camPos: cameraRef.current.position.toArray(),
-      target: controlsRef.current.target.toArray(),
+      animate()
     }
-    setSavedState(state)
-    showTempMessage(setSaveMsg, "✅ Scene saved!")
-  }
-
-  const restoreSceneState = () => {
-    if (!savedState) return
-    setSelectedModel(savedState.model)
-    setTimeout(() => {
-      modelRef.current.position.set(...savedState.modelPos)
-      modelRef.current.rotation.set(...savedState.modelRot)
-      cameraRef.current.position.set(...savedState.camPos)
-      controlsRef.current.target.set(...savedState.target)
-      controlsRef.current.update()
-    }, 500)
-    showTempMessage(setRestoreMsg, "✅ Scene restored!")
-  }
-
-  const handleShareLink = () => {
-    if (!modelRef.current || !controlsRef.current || !cameraRef.current) return
-    const state = {
-      model: selectedModel,
-      modelPos: modelRef.current.position.toArray(),
-      modelRot: modelRef.current.rotation.toArray(),
-      camPos: cameraRef.current.position.toArray(),
-      target: controlsRef.current.target.toArray(),
-    }
-    const shareURL = generateShareableLink(state)
-    navigator.clipboard.writeText(shareURL)
-    showTempMessage(setShareMsg, "🔗 Link copied!")
   }
 
   return (
     <>
       <div
-        id="control-buttons"
         style={{
           position: "absolute",
-          bottom: 100,
-          left: "50%",
-          transform: "translateX(-50%)",
-          zIndex: 1,
+          width: "100%",
+          top: 20,
+          left: 20,
+          zIndex: 2,
           display: "flex",
           alignItems: "center",
-          backgroundColor: "rgba(255, 255, 255, 0.1)",
-          padding: "12px",
-          borderRadius: "8px",
-          gap: "8px",
+          justifyContent: "space-between",
         }}
       >
-        <ModelSelector
+        <h2 style={{ margin: 0 }}>Pivotal</h2>
+        <div style={{ display: "flex", gap: "0px", marginRight: "20px" }}>
+          <ScreenshotButton onScreenshot={() => screenshotCallback.current()} />
+          <ShareLinkButton onShareLink={handleShareLink} shareMsg={shareMsg} />
+          <StateControls
+            onSaveState={saveSceneState}
+            onRestoreState={restoreSceneState}
+            saveMsg={saveMsg}
+            restoreMsg={restoreMsg}
+          />
+        </div>
+      </div>
+      <div
+        style={{
+          position: "absolute",
+          bottom: 20,
+          left: 20,
+          zIndex: 2,
+          display: "flex",
+          gap: "10px",
+        }}
+      >
+        <ModelControl
           selectedModel={selectedModel}
           onModelChange={setSelectedModel}
           modelList={modelList}
+          modelColor={modelColor}
+          onModelColorChange={setModelColor}
+          showEdges={showEdges}
+          onToggleEdges={() => setShowEdges(!showEdges)}
+          useColor={useColor}
+          onUseColorChange={setUseColor}
         />
-        <ControlButtons
-          onScreenshot={() => screenshotCallback.current()}
-          onSaveState={saveSceneState}
-          onRestoreState={restoreSceneState}
-          onShareLink={handleShareLink}
-          saveMsg={saveMsg}
-          restoreMsg={restoreMsg}
-          shareMsg={shareMsg}
+        <BackgroundControl
+          type={backgroundType}
+          onTypeChange={setBackgroundType}
+          color={backgroundColor}
+          onColorChange={setBackgroundColor}
+          gradientColors={gradientColors}
+          onGradientChange={setGradientColors}
         />
+        <CameraControl onResetCamera={resetCamera} />
       </div>
 
       <Canvas
@@ -141,10 +150,19 @@ export default function ThreeScene() {
         camera={{ position: [0, 2, 5], fov: 60 }}
         onCreated={({ camera }) => (cameraRef.current = camera)}
       >
-        <SetBackgroundTexture />
+        <SetBackground
+          type={backgroundType}
+          color={backgroundColor}
+          gradientColors={gradientColors}
+        />
         <ScreenshotHelper onReady={(fn) => (screenshotCallback.current = fn)} />
         <SceneSetup controlsRef={controlsRef} cameraRef={cameraRef} />
-        <Model url={`${MODEL_FOLDER}${selectedModel}`} modelRef={modelRef} />
+        <Model
+          url={`${MODEL_FOLDER}${selectedModel}`}
+          modelRef={modelRef}
+          color={useColor ? modelColor : undefined}
+          showEdges={showEdges}
+        />
       </Canvas>
     </>
   )

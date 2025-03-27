@@ -29,22 +29,13 @@ const messageStyle = {
 }
 
 export default function ControlButtons({
-  onScreenshot,
   onSaveState,
   onRestoreState,
-  onShareLink,
   saveMsg,
   restoreMsg,
-  shareMsg,
 }) {
   return (
     <>
-      <div style={containerStyle}>
-        <button onClick={onScreenshot} style={buttonStyle}>
-          📸 Screenshot
-        </button>
-      </div>
-
       <div style={containerStyle}>
         <button onClick={onSaveState} style={buttonStyle}>
           💾 Save State
@@ -57,13 +48,6 @@ export default function ControlButtons({
           ↩️ Restore State
         </button>
         <div style={messageStyle}>{restoreMsg}</div>
-      </div>
-
-      <div style={containerStyle}>
-        <button onClick={onShareLink} style={buttonStyle}>
-          🔗 Share Link
-        </button>
-        <div style={messageStyle}>{shareMsg}</div>
       </div>
     </>
   )
