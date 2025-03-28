@@ -10,6 +10,8 @@ export default function ModelControl({
   onToggleEdges,
   useColor,
   onUseColorChange,
+  modelScale,
+  onModelScaleChange,
 }) {
   return (
     <div
@@ -66,6 +68,34 @@ export default function ModelControl({
             }}
           />
         )}
+      </div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          backgroundColor: "rgba(255, 255, 255, 0.1)",
+          padding: "8px",
+          borderRadius: "4px",
+          width: "100%",
+        }}
+      >
+        <label style={{ fontSize: "14px", color: "white" }}>Scale:</label>
+        <input
+          type="range"
+          min="0.1"
+          max="10"
+          step="0.1"
+          value={modelScale}
+          onChange={(e) => onModelScaleChange(parseFloat(e.target.value))}
+          style={{
+            flex: 1,
+            cursor: "pointer",
+          }}
+        />
+        <span style={{ fontSize: "14px", color: "white", minWidth: "40px" }}>
+          {modelScale.toFixed(1)}x
+        </span>
       </div>
       <button
         onClick={onToggleEdges}

@@ -2,7 +2,13 @@ import { useEffect, useState } from "react"
 import { useGLTF } from "@react-three/drei"
 import * as THREE from "three"
 
-export default function Model({ url, modelRef, color, showEdges = false }) {
+export default function Model({
+  url,
+  modelRef,
+  color,
+  showEdges = false,
+  scale = 1,
+}) {
   const { scene } = useGLTF(url)
   const [edgeLines, setEdgeLines] = useState([])
 
@@ -23,6 +29,11 @@ export default function Model({ url, modelRef, color, showEdges = false }) {
       }
     })
   }, [scene, color])
+
+  useEffect(() => {
+    // Set the scale of the entire scene
+    scene.scale.set(scale, scale, scale)
+  }, [scene, scale])
 
   useEffect(() => {
     // Clean up previous edge lines

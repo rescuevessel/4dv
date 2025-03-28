@@ -39,6 +39,7 @@ export default function ThreeScene() {
   const [modelColor, setModelColor] = useState("#ffffff")
   const [showEdges, setShowEdges] = useState(false)
   const [useColor, setUseColor] = useState(true)
+  const [modelScale, setModelScale] = useState(1)
 
   // Scene state management
   const {
@@ -133,6 +134,8 @@ export default function ThreeScene() {
           onToggleEdges={() => setShowEdges(!showEdges)}
           useColor={useColor}
           onUseColorChange={setUseColor}
+          modelScale={modelScale}
+          onModelScaleChange={setModelScale}
         />
         <BackgroundControl
           type={backgroundType}
@@ -162,6 +165,7 @@ export default function ThreeScene() {
           modelRef={modelRef}
           color={useColor ? modelColor : undefined}
           showEdges={showEdges}
+          scale={modelScale}
         />
       </Canvas>
     </>
