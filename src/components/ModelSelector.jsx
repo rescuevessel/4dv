@@ -22,8 +22,8 @@ export default function ModelSelector({
       style={buttonStyle}
     >
       {modelList.map((model) => (
-        <option key={model} value={model}>
-          {model}
+        <option key={model.url} value={model.url}>
+          {model.name}
         </option>
       ))}
     </select>

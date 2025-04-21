@@ -44,6 +44,8 @@ export function SetBackground({ type, color, gradientColors }) {
     }
   }, [scene, type, color, gradientColors])
 
+  //scene.fog = new THREE.Fog(0x000000, 1, 10)
+
   return null
 }
 

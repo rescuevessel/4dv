@@ -3,26 +3,99 @@ import { Canvas } from "@react-three/fiber"
 import * as THREE from "three"
 import SceneSetup, { SetBackground } from "./components/SceneSetup"
 import Model from "./components/Model"
-import ScreenshotHelper from "./components/ScreenshotHelper"
+import ScreenshotHelper from "./utils/ScreenshotHelper"
 import ModelControl from "./components/scene/ModelControl"
 import CameraControl from "./components/scene/CameraControl"
 import ScreenshotButton from "./components/scene/ScreenshotButton"
 import ShareLinkButton from "./components/scene/ShareButton"
 import StateControls from "./components/scene/StateControls"
 import BackgroundControl from "./components/scene/BackgroundControl"
+import ModelUploadDialog from "./components/scene/ModelUploadDialog"
 import useSceneState from "./hooks/useSceneState"
-
-const MODEL_FOLDER = "/models/"
-// Get all .glb files from the public/models directory
-const modelList = Object.keys(
-  import.meta.glob("/public/models/*.glb", { query: "?url", import: "default" })
-).map((path) => path.split("/").pop()) // Get just the filename
+import { resetCamera } from "./utils/cameraUtils"
+import {
+  getDatabaseModels,
+  uploadModel,
+  deleteModel,
+  renameModel,
+} from "./utils/supabaseClient"
 
 // Default camera position and target
 const DEFAULT_CAMERA_POSITION = [0, 2, 5]
 const DEFAULT_CAMERA_TARGET = [0, 0, 0]
 
 export default function ThreeScene() {
+  const [models, setModels] = useState([])
+  const [selectedModel, setSelectedModel] = useState("")
+  const [showUploadDialog, setShowUploadDialog] = useState(false)
+  const [uploadError, setUploadError] = useState(null)
+  const [uploadSuccess, setUploadSuccess] = useState(null)
+  const [isUploading, setIsUploading] = useState(false)
+
+  const fetchModels = async () => {
+    const data = await getDatabaseModels()
+    setModels(data)
+    if (data.length > 0 && !selectedModel) {
+      setSelectedModel(data[0].url)
+    }
+    return data
+  }
+
+  useEffect(() => {
+    fetchModels()
+  }, [])
+
+  const handleUpload = async (file, name) => {
+    setIsUploading(true)
+    setUploadError(null)
+    setUploadSuccess(null)
+
+    try {
+      const result = await uploadModel(file, name)
+      if (!result.success) {
+        throw result.error
+      }
+
+      // Refresh models and get the latest data
+      const updatedModels = await fetchModels()
+
+      // Find the newly uploaded model
+      const newModel = updatedModels.find((model) => model.name === name)
+      if (newModel) {
+        setSelectedModel(newModel.url)
+        setUploadSuccess(`Successfully uploaded ${name}!`)
+      }
+    } catch (error) {
+      console.error("Upload failed:", error)
+      setUploadError(error.message || "Failed to upload model")
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  const handleDelete = async (modelUrl) => {
+    try {
+      await deleteModel(modelUrl)
+      const updatedModels = await fetchModels()
+      if (selectedModel === modelUrl) {
+        setSelectedModel(updatedModels[0]?.url || "")
+      }
+    } catch (error) {
+      console.error("Failed to delete model:", error)
+    }
+  }
+
+  const handleRename = async (modelUrl, newName) => {
+    try {
+      const result = await renameModel(modelUrl, newName)
+      await fetchModels() // Refresh the model list
+      return result
+    } catch (error) {
+      console.error("Failed to rename model:", error)
+      return { success: false, error }
+    }
+  }
+
   // Refs
   const screenshotCallback = useRef(() => {})
   const modelRef = useRef()
@@ -39,53 +112,25 @@ export default function ThreeScene() {
   const [modelColor, setModelColor] = useState("#ffffff")
   const [showEdges, setShowEdges] = useState(false)
   const [useColor, setUseColor] = useState(true)
-  const [modelScale, setModelScale] = useState(1)
+  const [modelScale, setModelScale] = useState(25)
 
   // Scene state management
   const {
-    selectedModel,
-    setSelectedModel,
     saveMsg,
     restoreMsg,
     shareMsg,
     saveSceneState,
     restoreSceneState,
     handleShareLink,
-  } = useSceneState(modelRef, controlsRef, cameraRef, modelList)
+  } = useSceneState(
+    modelRef,
+    controlsRef,
+    cameraRef,
+    models.map((m) => m.url)
+  )
 
-  const resetCamera = () => {
-    if (cameraRef.current && controlsRef.current) {
-      // Set the target to the center
-      controlsRef.current.target.set(...DEFAULT_CAMERA_TARGET)
-
-      // Animate the camera position
-      const startPosition = cameraRef.current.position.clone()
-      const endPosition = new THREE.Vector3(...DEFAULT_CAMERA_POSITION)
-
-      // Create an animation
-      const duration = 1000 // 1 second
-      const startTime = Date.now()
-
-      const animate = () => {
-        const elapsed = Date.now() - startTime
-        const progress = Math.min(elapsed / duration, 1)
-
-        // Ease out cubic function for smooth deceleration
-        const t = 1 - Math.pow(1 - progress, 3)
-
-        // Interpolate position
-        cameraRef.current.position.lerpVectors(startPosition, endPosition, t)
-
-        // Update controls
-        controlsRef.current.update()
-
-        if (progress < 1) {
-          requestAnimationFrame(animate)
-        }
-      }
-
-      animate()
-    }
+  const handleResetCamera = () => {
+    resetCamera(cameraRef, controlsRef)
   }
 
   return (
@@ -95,15 +140,15 @@ export default function ThreeScene() {
           position: "absolute",
           width: "100%",
           top: 20,
-          left: 20,
+
           zIndex: 2,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
         }}
       >
-        <h2 style={{ margin: 0 }}>Pivotal</h2>
-        <div style={{ display: "flex", gap: "0px", marginRight: "20px" }}>
+        <h1 style={{ marginLeft: "12px" }}>Pivotal</h1>
+        <div style={{ display: "flex", gap: "0px" }}>
           <ScreenshotButton onScreenshot={() => screenshotCallback.current()} />
           <ShareLinkButton onShareLink={handleShareLink} shareMsg={shareMsg} />
           <StateControls
@@ -114,20 +159,26 @@ export default function ThreeScene() {
           />
         </div>
       </div>
-      <div
-        style={{
-          position: "absolute",
-          bottom: 20,
-          left: 20,
-          zIndex: 2,
-          display: "flex",
-          gap: "10px",
-        }}
-      >
+
+      {showUploadDialog && (
+        <ModelUploadDialog
+          onClose={() => {
+            setShowUploadDialog(false)
+            setUploadError(null)
+            setUploadSuccess(null)
+          }}
+          onUpload={handleUpload}
+          isUploading={isUploading}
+          error={uploadError}
+          success={uploadSuccess}
+        />
+      )}
+
+      <div className="control-panel-container">
         <ModelControl
           selectedModel={selectedModel}
           onModelChange={setSelectedModel}
-          modelList={modelList}
+          modelList={models}
           modelColor={modelColor}
           onModelColorChange={setModelColor}
           showEdges={showEdges}
@@ -136,6 +187,12 @@ export default function ThreeScene() {
           onUseColorChange={setUseColor}
           modelScale={modelScale}
           onModelScaleChange={setModelScale}
+          onUpload={handleUpload}
+          isUploading={isUploading}
+          uploadError={uploadError}
+          uploadSuccess={uploadSuccess}
+          onDelete={handleDelete}
+          onRename={handleRename}
         />
         <BackgroundControl
           type={backgroundType}
@@ -145,7 +202,7 @@ export default function ThreeScene() {
           gradientColors={gradientColors}
           onGradientChange={setGradientColors}
         />
-        <CameraControl onResetCamera={resetCamera} />
+        <CameraControl onResetCamera={handleResetCamera} />
       </div>
 
       <Canvas
@@ -160,13 +217,15 @@ export default function ThreeScene() {
         />
         <ScreenshotHelper onReady={(fn) => (screenshotCallback.current = fn)} />
         <SceneSetup controlsRef={controlsRef} cameraRef={cameraRef} />
-        <Model
-          url={`${MODEL_FOLDER}${selectedModel}`}
-          modelRef={modelRef}
-          color={useColor ? modelColor : undefined}
-          showEdges={showEdges}
-          scale={modelScale}
-        />
+        {selectedModel && (
+          <Model
+            url={selectedModel}
+            modelRef={modelRef}
+            color={useColor ? modelColor : undefined}
+            showEdges={showEdges}
+            scale={modelScale}
+          />
+        )}
       </Canvas>
     </>
   )

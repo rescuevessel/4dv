@@ -10,13 +10,15 @@ export default function StateControls({
         display: "flex",
         alignItems: "center",
         gap: "8px",
-
+        backgroundColor: "rgba(255, 255, 255, 0.1)",
         padding: "8px",
-
+        borderRadius: "4px",
+        marginLeft: "16px",
         position: "relative",
       }}
     >
       <select
+        value=""
         onChange={(e) => {
           if (e.target.value === "save") {
             onSaveState()
@@ -37,8 +39,8 @@ export default function StateControls({
           gap: "4px",
         }}
       >
-        <option value="" disabled selected>
-          <span style={{ fontSize: "16px" }}>💾</span> Scenes
+        <option value="" disabled>
+          💾 State Controls
         </option>
         <option value="save">💾 Save State</option>
         <option value="restore">↩️ Restore State</option>
